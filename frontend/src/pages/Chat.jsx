@@ -21,17 +21,21 @@ function Chat() {
     endRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  const replyTo = (text) => {
-    const reply = axio
+  const replyTo =  async (text) => {
+    const reply = await axios.post('/api/chat', { text });
+
+    return reply.data;
   }
 
-  const send = (event) => {
+
+  const send = async (event) => {
     event.preventDefault()
     const text = draft.trim()
     if (!text) return
-
-    setDraft('')
     setMessages((prev) => [...prev, { role: 'user', text }])
+    setDraft('')
+    const data = await replyTo(text);
+    setMessages((prev) => [...prev, { role: 'assistant', text: data }])
 
     window.setTimeout(() => {
       setMessages((prev) => [...prev, { role: 'assistant', text: replyTo(text) }])
