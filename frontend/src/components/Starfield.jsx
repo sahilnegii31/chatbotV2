@@ -1,9 +1,5 @@
 import { useEffect, useRef } from 'react'
 
-/**
- * Lightweight canvas starfield. Dots twinkle and drift slowly so
- * the page feels like deep space without pulling in a 3D library.
- */
 function Starfield() {
   const canvasRef = useRef(null)
 

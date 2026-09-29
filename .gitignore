@@ -2,3 +2,8 @@
 .env
 #node_modules
 node_modules
+#vite config
+vite.config.js
+
+#json
+package-lock.json
