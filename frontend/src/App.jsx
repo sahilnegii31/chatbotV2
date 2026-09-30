@@ -6,7 +6,6 @@ import Auth from './pages/Auth.jsx'
 import Chat from './pages/Chat.jsx'
 
 
-/**testing 
 
 /**
  * App shell: starfield lives behind every route so the galaxy
