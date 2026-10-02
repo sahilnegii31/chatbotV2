@@ -8,40 +8,52 @@ const starter = [
   },
 ]
 
-
 function Chat() {
   const models = ['Gemini 1.5 Pro', 'GPT-4o', 'Claude 3.5 Sonnet']
   const [selectedModel, setSelectedModel] = useState(models[0])
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false)
   const [messages, setMessages] = useState(starter)
   const [draft, setDraft] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
   const endRef = useRef(null)
-  
-  console.log(selectedModel) // just to check the selected model
-  
+
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+  }, [messages, isLoading])
 
-  const replyTo =  async (text) => {
-    const reply = await axios.post('/api/chat', { text });
-
-    return reply.data;
+  const replyTo = async (text) => {
+    try {
+      const reply = await axios.post("http://localhost:3000/api/response", {
+        message: text,
+        role : 'user',
+      })
+      // Extract response string from the backend's { response: "..." } JSON
+      return reply.data.response || 'No response from assistant.'
+    } catch (error) {
+      alert(error);
+      console.error('API Error:', error)
+      return (
+        error.response?.data?.error 
+       // 'Unable to connect to the server. Please verify the backend is running on port 3000.'
+      )
+    }
   }
-
 
   const send = async (event) => {
     event.preventDefault()
     const text = draft.trim()
-    if (!text) return
+    if (!text || isLoading) return
+
     setMessages((prev) => [...prev, { role: 'user', text }])
     setDraft('')
-    const data = await replyTo(text);
-    setMessages((prev) => [...prev, { role: 'assistant', text: data }])
-    console.log(messages) // just to check the messages array after sending a message
-    window.setTimeout(() => {
-      setMessages((prev) => [...prev, { role: 'assistant', text: replyTo(text) }])
-    }, 450)
+    setIsLoading(true)
+
+    try {
+      const botResponse = await replyTo(text)
+      setMessages((prev) => [...prev, { role: 'assistant', text: botResponse }])
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -63,57 +75,72 @@ function Chat() {
             </p>
           </div>
         ))}
+        {isLoading && (
+          <div className="flex justify-start">
+            <p className="max-w-[85%] rounded-2xl border border-white/10 bg-white/10 px-4 py-3 text-sm italic text-white/60">
+              Thinking…
+            </p>
+          </div>
+        )}
         <div ref={endRef} />
       </div>
-      <div className="relative mt-4 w-fit">
-  {/* Trigger Button */}
-  <button
-    type="button"
-    onClick={() => setIsModelMenuOpen((prev) => !prev)}
-    className="flex items-center gap-2 rounded-2xl border border-white/10 bg-[#0b0618]/60 px-4 py-2 text-sm text-gray-300 backdrop-blur-md transition hover:border-white/20 hover:text-white"
-  >
-    <span className="h-2 w-2 rounded-full bg-cyan-400" />
-    <span>{selectedModel}</span>
-    <span className={`text-xs transition-transform duration-200 ${isModelMenuOpen ? 'rotate-180' : ''}`}>
-      ▲
-    </span>
-  </button>
 
-  {/* Dropdown Menu (opens upward above input) */}
-  {isModelMenuOpen && (
-    <div className="absolute bottom-full mb-2 left-0 z-20 flex min-w-[180px] flex-col gap-1 rounded-2xl border border-white/10 bg-[#0b0618]/90 p-1.5 shadow-xl backdrop-blur-md">
-      {models.map((model) => (
+      <div className="relative mt-4 w-fit">
+        {/* Trigger Button */}
         <button
-          key={model}
           type="button"
-          onClick={() => {
-            setSelectedModel(model)
-            setIsModelMenuOpen(false)
-          }}
-          className={`rounded-xl px-3 py-2 text-left text-sm transition ${
-            selectedModel === model
-              ? 'bg-white/15 text-cyan-300 font-medium'
-              : 'text-gray-300 hover:bg-white/10 hover:text-white'
-          }`}
+          onClick={() => setIsModelMenuOpen((prev) => !prev)}
+          className="flex items-center gap-2 rounded-2xl border border-white/10 bg-[#0b0618]/60 px-4 py-2 text-sm text-gray-300 backdrop-blur-md transition hover:border-white/20 hover:text-white"
         >
-          {model}
+          <span className="h-2 w-2 rounded-full bg-cyan-400" />
+          <span>{selectedModel}</span>
+          <span
+            className={`text-xs transition-transform duration-200 ${
+              isModelMenuOpen ? 'rotate-180' : ''
+            }`}
+          >
+            ▲
+          </span>
         </button>
-      ))}
-    </div>
-  )}
-</div>
+
+        {/* Dropdown Menu (opens upward above input) */}
+        {isModelMenuOpen && (
+          <div className="absolute bottom-full left-0 z-20 mb-2 flex min-w-[180px] flex-col gap-1 rounded-2xl border border-white/10 bg-[#0b0618]/90 p-1.5 shadow-xl backdrop-blur-md">
+            {models.map((model) => (
+              <button
+                key={model}
+                type="button"
+                onClick={() => {
+                  setSelectedModel(model)
+                  setIsModelMenuOpen(false)
+                }}
+                className={`rounded-xl px-3 py-2 text-left text-sm transition ${
+                  selectedModel === model
+                    ? 'bg-white/15 font-medium text-cyan-300'
+                    : 'text-gray-300 hover:bg-white/10 hover:text-white'
+                }`}
+              >
+                {model}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
       <form onSubmit={send} className="mt-4 flex gap-2">
         <input
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
-          placeholder="Transmit a message…"
-          className="flex-1 rounded-full border border-white/15 bg-white/5 px-5 py-3 text-sm outline-none ring-cyan-300/40 placeholder:text-white/30 focus:ring-2"
+          disabled={isLoading}
+          placeholder={isLoading ? 'Nova is thinking…' : 'Transmit a message…'}
+          className="flex-1 rounded-full border border-white/15 bg-white/5 px-5 py-3 text-sm outline-none ring-cyan-300/40 placeholder:text-white/30 focus:ring-2 disabled:opacity-50"
         />
         <button
           type="submit"
-          className="rounded-full bg-white px-5 py-3 text-sm font-semibold text-void"
+          disabled={isLoading || !draft.trim()}
+          className="rounded-full bg-white px-5 py-3 text-sm font-semibold text-void transition disabled:cursor-not-allowed disabled:opacity-50"
         >
-          Send
+          {isLoading ? 'Sending…' : 'Send'}
         </button>
       </form>
     </main>

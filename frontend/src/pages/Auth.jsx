@@ -1,37 +1,74 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import axios from 'axios'
 
-/**
- * Combined login / signup page. Same galaxy chrome as the rest of
- * the site. Forms are ready to POST to your auth API — they currently
- * just navigate into chat so you can keep building the UI.
- */
 function Auth({ mode }) {
   const isLogin = mode === 'login'
   const navigate = useNavigate()
   const [form, setForm] = useState({
-    name: '',
+    username: '',
     email: '',
     password: '',
   })
   const [error, setError] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const onChange = (event) => {
-    setForm((prev) => ({ ...prev, [event.target.name]: event.target.value }))
+    const { name, value } = event.target
+    setForm((prev) => ({ ...prev, [name]: value }))
+    if (error) setError('')
   }
 
-  const onSubmit = (event) => {
+  const onSubmit = async (event) => {
     event.preventDefault()
     setError('')
 
-    if (!form.email || !form.password || (!isLogin && !form.name)) {
-      setError('Please fill in every field before launching.')
+    const username = form.username.trim()
+    const password = form.password
+
+    if (!username || !password) {
+      setError('Please provide both username and password.')
       return
     }
 
-    // TODO: replace with your real auth request (JWT / session / OAuth).
-    // Example: await fetch('/api/auth/login', { method: 'POST', body: JSON.stringify(form) })
-    navigate('/chat')
+    setIsSubmitting(true)
+    try {
+      const endpoint = `http://localhost:3000/api/auth/${isLogin ? 'login' : 'register'}`
+      const response = await axios.post(endpoint, {
+        username,
+        pass: password,
+      })
+
+      if (isLogin) {
+        if (response.data?.token) {
+          localStorage.setItem('token', response.data.token)
+        }
+        navigate('/chat')
+      } else {
+        // On successful registration, automatically log in the user
+        try {
+          const loginRes = await axios.post('http://localhost:3000/api/auth/login', {
+            username,
+            pass: password,
+          })
+          if (loginRes.data?.token) {
+            localStorage.setItem('token', loginRes.data.token)
+          }
+          navigate('/chat')
+        } catch {
+          navigate('/login')
+        }
+      }
+    } catch (err) {
+      console.error('Auth error:', err)
+      setError(
+        err.response?.data?.message ||
+        err.response?.data?.error ||
+        'Unable to connect to auth server. Please check if the backend is running.'
+      )
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -50,32 +87,34 @@ function Auth({ mode }) {
         </p>
 
         <form className="mt-8 space-y-4" onSubmit={onSubmit}>
+          <label className="block text-sm">
+            <span className="mb-1.5 block text-white/70">Username</span>
+            <input
+              name="username"
+              type="text"
+              value={form.username}
+              onChange={onChange}
+              autoComplete="username"
+              required
+              className="w-full rounded-2xl border border-white/15 bg-white/5 px-4 py-3 outline-none ring-cyan-300/40 placeholder:text-white/30 focus:ring-2"
+              placeholder="e.g. sahil_dev"
+            />
+          </label>
+
           {!isLogin && (
             <label className="block text-sm">
-              <span className="mb-1.5 block text-white/70">Name</span>
+              <span className="mb-1.5 block text-white/70">Email (Optional)</span>
               <input
-                name="name"
-                value={form.name}
+                name="email"
+                type="email"
+                value={form.email}
                 onChange={onChange}
-                autoComplete="name"
+                autoComplete="email"
                 className="w-full rounded-2xl border border-white/15 bg-white/5 px-4 py-3 outline-none ring-cyan-300/40 placeholder:text-white/30 focus:ring-2"
-                placeholder="Ada Lovelace"
+                placeholder="abc@gmail.com"
               />
             </label>
           )}
-
-          <label className="block text-sm">
-            <span className="mb-1.5 block text-white/70">Email</span>
-            <input
-              name="email"
-              type="email"
-              value={form.email}
-              onChange={onChange}
-              autoComplete="email"
-              className="w-full rounded-2xl border border-white/15 bg-white/5 px-4 py-3 outline-none ring-cyan-300/40 placeholder:text-white/30 focus:ring-2"
-              placeholder="you@orbit.io"
-            />
-          </label>
 
           <label className="block text-sm">
             <span className="mb-1.5 block text-white/70">Password</span>
@@ -85,6 +124,7 @@ function Auth({ mode }) {
               value={form.password}
               onChange={onChange}
               autoComplete={isLogin ? 'current-password' : 'new-password'}
+              required
               className="w-full rounded-2xl border border-white/15 bg-white/5 px-4 py-3 outline-none ring-cyan-300/40 placeholder:text-white/30 focus:ring-2"
               placeholder="••••••••"
             />
@@ -94,9 +134,16 @@ function Auth({ mode }) {
 
           <button
             type="submit"
-            className="w-full rounded-full bg-gradient-to-r from-cyan-300 to-violet-400 py-3 text-sm font-semibold text-void"
+            disabled={isSubmitting}
+            className="w-full rounded-full bg-gradient-to-r from-cyan-300 to-violet-400 py-3 text-sm font-semibold text-void transition disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {isLogin ? 'Log in' : 'Sign up'}
+            {isSubmitting
+              ? isLogin
+                ? 'Logging in…'
+                : 'Creating account…'
+              : isLogin
+              ? 'Log in'
+              : 'Sign up'}
           </button>
         </form>
 
